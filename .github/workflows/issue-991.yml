@@ -1,0 +1,38 @@
+name: Issue 991
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: php:7.4-apache
+    env:
+      IPE_VERSION: 2.5.2
+      EXTENSIONS: sockets
+    steps:
+      -
+        name: Dump system info
+        run: cat /etc/os-release
+      -
+        name: Download install-php-extensions v.${{ env.IPE_VERSION }}
+        run: >
+          curl
+          -sSLf
+          -o /usr/local/bin/install-php-extensions
+          https://github.com/mlocati/docker-php-extension-installer/releases/download/$IPE_VERSION/install-php-extensions
+      -
+        name: Make install-php-extensions executable
+        run: chmod +x /usr/local/bin/install-php-extensions
+      -
+        name: Install extensions
+        run: install-php-extensions ${{ env.EXTENSIONS }}
+      -
+        name: Inspect extensions
+        run: |
+          for EXTENSION in ${{ env.EXTENSIONS }}; do
+            echo "### Inspecting $EXTENSION"
+            php --ri "$EXTENSION"
+            printf '\n\n'
+          done
