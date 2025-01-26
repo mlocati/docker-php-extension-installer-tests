@@ -1,0 +1,51 @@
+name: Test Issue
+
+on:
+  workflow_dispatch:
+    inputs:
+      docker-image:
+        description: 'Docker image to use'
+        required: true
+      extensions:
+        description: 'Extensions to install'
+        required: true
+      ipe-version:
+        description: 'Version of install-php-extensions to use'
+        required: true
+
+jobs:
+  test:
+    name: Test with ${{ inputs.docker-image}}
+    runs-on: ubuntu-latest
+    container: 
+      image: ${{ inputs.docker-image }}
+    steps:
+      -
+        name: Dump info
+        run: |
+          printf 'Docker image: %s\n' "${{ inputs.docker-image }}"
+          printf 'Extensions to install: %s\n' "${{ inputs.extensions }}"
+          printf 'docker-php-extension-installer to install: %s\n' "${{ inputs.ipe-version }}"
+          printf '### System info\n'
+          cat /etc/os-release
+      -
+        name: Download install-php-extensions v.${{ inputs.ipe-version }}
+        run: >
+          curl
+          -sSLf
+          -o /usr/local/bin/install-php-extensions
+          https://github.com/mlocati/docker-php-extension-installer/releases/download/${{ inputs.ipe-version }}/install-php-extensions
+      -
+        name: Make install-php-extensions executable
+        run: chmod +x /usr/local/bin/install-php-extensions
+      -
+        name: Install extensions
+        run: install-php-extensions ${{ inputs.extensions }}
+      -
+        name: Inspect extensions
+        run: |
+          for EXTENSION in ${{ inputs.extensions }}; do
+            echo "### Inspecting $EXTENSION"
+            php --ri "$EXTENSION"
+            printf '\n\n'
+          done
