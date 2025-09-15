@@ -11,7 +11,7 @@ on:
         required: true
       ipe-version:
         description: 'Version of install-php-extensions to use'
-        required: true
+        required: false
 
 jobs:
   test:
@@ -21,30 +21,64 @@ jobs:
       image: ${{ inputs.docker-image }}
     steps:
       -
+        name: Parse inputs
+        id: parsed-inputs
+        run: |
+          # extensions
+          EXTENSIONS="${{ inputs.extensions }}"
+          EXTENSION_NAMES=
+          for EXTENSION in $EXTENSIONS; do
+            EXTENSION_NAME="$EXTENSION"
+            EXTENSION_NAME="${EXTENSION_NAME%%-*}"
+            EXTENSION_NAME="${EXTENSION_NAME%%^*}"
+            if [ -z "$EXTENSION_NAMES" ]; then
+              EXTENSION_NAMES="$EXTENSION_NAME"
+            else
+              EXTENSION_NAMES="$EXTENSION_NAMES $EXTENSION_NAME"
+            fi
+          done
+          echo "extensions=$EXTENSIONS" >>$GITHUB_OUTPUT
+          echo "extension-names=$EXTENSION_NAMES" >>$GITHUB_OUTPUT
+          
+          # ipe-version
+          IPE_VERSION="${{ inputs.ipe-version }}"
+          IPE_VERSION="${IPE_VERSION#v}"
+          IPE_VERSION="${IPE_VERSION#.}"
+          IPE_VERSION="${IPE_VERSION# }"
+          if [ -z "$IPE_VERSION" ]; then
+            IPE_VERSION=latest
+          fi
+          if [ "$IPE_VERSION" = latest ]; then
+            IPE_URL=https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions
+          else
+            IPE_URL="https://github.com/mlocati/docker-php-extension-installer/releases/download/$IPE_VERSION/install-php-extensions"
+          fi
+          echo "ipe-version=$IPE_VERSION" >>$GITHUB_OUTPUT
+          echo "ipe-url=$IPE_URL" >>$GITHUB_OUTPUT
+          
+          # Dump results
+          cat "$GITHUB_OUTPUT"
+      -
         name: Dump info
         run: |
           printf 'Docker image: %s\n' "${{ inputs.docker-image }}"
-          printf 'Extensions to install: %s\n' "${{ inputs.extensions }}"
-          printf 'docker-php-extension-installer to install: %s\n' "${{ inputs.ipe-version }}"
+          printf 'Extensions to install: %s\n' "${{ steps.parsed-inputs.outputs.extensions }}"
+          printf 'docker-php-extension-installer to install: %s\n' "${{ steps.parsed-inputs.outputs.ipe-version }}"
           printf '### System info\n'
           cat /etc/os-release
       -
-        name: Download install-php-extensions v.${{ inputs.ipe-version }}
-        run: >
-          curl
-          -sSLf
-          -o /usr/local/bin/install-php-extensions
-          https://github.com/mlocati/docker-php-extension-installer/releases/download/${{ inputs.ipe-version }}/install-php-extensions
+        name: Download install-php-extensions v.${{ steps.parsed-inputs.outputs.ipe-version }}
+        run: curl -sSLf -o /usr/local/bin/install-php-extensions "${{ steps.parsed-inputs.outputs.ipe-url }}"
       -
         name: Make install-php-extensions executable
         run: chmod +x /usr/local/bin/install-php-extensions
       -
         name: Install extensions
-        run: install-php-extensions ${{ inputs.extensions }}
+        run: install-php-extensions ${{ steps.parsed-inputs.outputs.extensions }}
       -
         name: Inspect extensions
         run: |
-          for EXTENSION in ${{ inputs.extensions }}; do
+          for EXTENSION in ${{ steps.parsed-inputs.outputs.extension-names }}; do
             echo "### Inspecting $EXTENSION"
             php --ri "$EXTENSION"
             printf '\n\n'
