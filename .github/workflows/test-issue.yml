@@ -26,19 +26,7 @@ jobs:
         run: |
           # extensions
           EXTENSIONS="${{ inputs.extensions }}"
-          EXTENSION_NAMES=
-          for EXTENSION in $EXTENSIONS; do
-            EXTENSION_NAME="$EXTENSION"
-            EXTENSION_NAME="${EXTENSION_NAME%%-*}"
-            EXTENSION_NAME="${EXTENSION_NAME%%^*}"
-            if [ -z "$EXTENSION_NAMES" ]; then
-              EXTENSION_NAMES="$EXTENSION_NAME"
-            else
-              EXTENSION_NAMES="$EXTENSION_NAMES $EXTENSION_NAME"
-            fi
-          done
           echo "extensions=$EXTENSIONS" >>$GITHUB_OUTPUT
-          echo "extension-names=$EXTENSION_NAMES" >>$GITHUB_OUTPUT
           
           # ipe-version
           IPE_VERSION="${{ inputs.ipe-version }}"
@@ -67,6 +55,9 @@ jobs:
           printf '### System info\n'
           cat /etc/os-release
       -
+        name: List pre-installed extensions
+        run: php -m >/tmp/pre-installed-extensions.txt 2>/dev/null && cat /tmp/pre-installed-extensions.txt
+      -
         name: Download install-php-extensions v.${{ steps.parsed-inputs.outputs.ipe-version }}
         run: curl -sSLf -o /usr/local/bin/install-php-extensions "${{ steps.parsed-inputs.outputs.ipe-url }}"
       -
@@ -76,10 +67,13 @@ jobs:
         name: Install extensions
         run: install-php-extensions ${{ steps.parsed-inputs.outputs.extensions }}
       -
+        name: List post-installed extensions
+        run: php -m >/tmp/post-installed-extensions.txt 2>/dev/null && cat /tmp/post-installed-extensions.txt
+      -
         name: Inspect extensions
         run: |
-          for EXTENSION in ${{ steps.parsed-inputs.outputs.extension-names }}; do
-            echo "### Inspecting $EXTENSION"
+          for EXTENSION in $(grep -v -F -x -f /tmp/pre-installed-extensions.txt /tmp/post-installed-extensions.txt); do
+            echo "::group::Inspecting $EXTENSION"
             php --ri "$EXTENSION"
-            printf '\n\n'
+            echo "::endgroup::"
           done
